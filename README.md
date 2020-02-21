@@ -51,3 +51,6 @@ Returns a payment result object containing a paymentId and bool value indicating
 **To Do / Improve**  
 
 Unit test coverage could be increased, payments at the moment are treating each customer as a new customer, should be able to reuse details once created (same applied to customer address).  Need to implement encryption for both storing customer card details in the database and for sending to the bank api. 
+
+**Database**
+To create the database run update-database from the Package Manager Console within visual studio.
