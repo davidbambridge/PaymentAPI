@@ -1,5 +1,4 @@
 ﻿using System;
-using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Moq;
@@ -26,20 +25,81 @@ namespace WebApi.Helpers.Tests
         [Fact]
         public async Task ProcessPayment_HappyPath()
         {
+            PaymentResult paymentResult = new PaymentResult()
+            {
+                ExternalPaymentReference = Guid.NewGuid().ToString(),
+                PaymentStatus = PaymentStatus.Approved,
+                PaymentId = Guid.NewGuid().ToString()
+            };
 
-            PaymentItem payment = new PaymentItem()
+
+            PaymentItem payment = CreateValidPaymentItem();
+
+            _mockBank.Setup(x => x.ProcessPaymentAsync(It.IsAny<PaymentItem>())).ReturnsAsync(paymentResult);
+            _mockDataAccess.Setup(x => x.SavePaymentItemAsync(It.IsAny<PaymentItem>())).ReturnsAsync(payment);
+
+            MerchantId merchantId = new MerchantId() { UUID = Guid.NewGuid().ToString() };
+
+            PaymentHelper paymentHelper = new PaymentHelper(_mockLogger.Object, _mockBank.Object, _mockDataAccess.Object);
+            PaymentResult result = await paymentHelper.ProcessPaymentAsync(merchantId, payment).ConfigureAwait(false);
+
+            Assert.NotNull(result);
+        }
+
+        [Fact]
+        public async Task ProcessPayment_BankError()
+        {
+
+            PaymentItem payment = CreateValidPaymentItem();
+            _mockBank.Setup(x => x.ProcessPaymentAsync(It.IsAny<PaymentItem>())).ReturnsAsync((PaymentResult)null);
+           
+            MerchantId merchantId = new MerchantId() { UUID = Guid.NewGuid().ToString() };
+
+            PaymentHelper paymentHelper = new PaymentHelper(_mockLogger.Object, _mockBank.Object, _mockDataAccess.Object);
+
+            await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+                 paymentHelper.ProcessPaymentAsync(merchantId, payment)).ConfigureAwait(false);
+        }
+
+
+        [Fact]
+        public async Task ProcessPayment_DataStoreError()
+        {
+            PaymentResult paymentResult = new PaymentResult()
+            {
+                ExternalPaymentReference = Guid.NewGuid().ToString(),
+                PaymentStatus = PaymentStatus.Approved,
+                PaymentId = Guid.NewGuid().ToString()
+            };
+
+            PaymentItem payment = CreateValidPaymentItem();
+            _mockBank.Setup(x => x.ProcessPaymentAsync(It.IsAny<PaymentItem>())).ReturnsAsync(paymentResult);
+            _mockDataAccess.Setup(x => x.SavePaymentItemAsync(It.IsAny<PaymentItem>())).ReturnsAsync((PaymentItem)null);
+
+
+            MerchantId merchantId = new MerchantId() { UUID = Guid.NewGuid().ToString() };
+
+            PaymentHelper paymentHelper = new PaymentHelper(_mockLogger.Object, _mockBank.Object, _mockDataAccess.Object);
+
+            await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
+                 paymentHelper.ProcessPaymentAsync(merchantId, payment)).ConfigureAwait(false);
+        }
+
+        private PaymentItem CreateValidPaymentItem()
+        {
+            return new PaymentItem()
             {
                 PaymentAmount = 3.50,
                 PaymentCurrency = PaymentCurrency.Gbp,
                 PaymentCard = new Card()
                 {
-                    CardNumber = "4462918603783343",
+                    CardNumber = "0000000000000000",
                     Cvv = 111,
                     NameOnCard = "Mr D P Bambridge",
                     Month = 10,
                     Year = 2022
                 },
-                PaymentMerchant = new Merchant() { MerchantId = new MerchantId() {UUID = Guid.NewGuid().ToString() }},
+                PaymentMerchant = new Merchant() { MerchantId = new MerchantId() { UUID = Guid.NewGuid().ToString() } },
                 PaymentCustomer = new Customer()
                 {
                     Title = Title.Mr,
@@ -54,15 +114,7 @@ namespace WebApi.Helpers.Tests
                     }
                 }
             };
-
-            MerchantId merchantId = new MerchantId() { UUID = Guid.NewGuid().ToString() };
-
-            PaymentHelper paymentHelper = new PaymentHelper(_mockLogger.Object, _mockBank.Object, _mockDataAccess.Object);
-            PaymentResult paymentResult = await paymentHelper.ProcessPaymentAsync(merchantId, payment).ConfigureAwait(false);
-           
-
-
-            Assert.True(true);
         }
+
     }
 }
